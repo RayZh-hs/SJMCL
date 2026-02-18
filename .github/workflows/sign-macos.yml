@@ -9,6 +9,10 @@ on:
         description: 'Version to sign'
         required: true
         type: string
+    outputs:
+      signed:
+        description: 'Whether macOS artifacts were successfully signed'
+        value: ${{ jobs.check-secrets.outputs.should_sign }}
     secrets:
       MACOS_CERT_P12_BASE64:
         description: 'Base64 encoded p12 certificate'
@@ -30,18 +34,17 @@ on:
         required: false
 
 jobs:
-  sign-macos:
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: [aarch64, x86_64]
-    
+  check-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      should_sign: ${{ steps.validate.outputs.should_sign }}
+
     steps:
       - name: Validate signing secrets
         id: validate
         run: |
           MISSING_SECRETS=()
-          
+
           if [ -z "${{ secrets.MACOS_CERT_P12_BASE64 }}" ]; then
             MISSING_SECRETS+=("MACOS_CERT_P12_BASE64")
           fi
@@ -60,15 +63,26 @@ jobs:
           if [ -z "${{ secrets.MACOS_NOTARY_TEAM_ID }}" ]; then
             MISSING_SECRETS+=("MACOS_NOTARY_TEAM_ID")
           fi
-          
+
           if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
             echo "::warning::⚠️ macOS code signing will be skipped - missing secrets: ${MISSING_SECRETS[*]}"
             echo "The release will continue with unsigned macOS artifacts."
-            exit 1
+            echo "should_sign=false" >> $GITHUB_OUTPUT
+            exit 0
           fi
-          
-          echo "✅ All required secrets are present"
 
+          echo "✅ All required secrets are present"
+          echo "should_sign=true" >> $GITHUB_OUTPUT
+
+  sign-macos:
+    needs: [check-secrets]
+    if: needs.check-secrets.outputs.should_sign == 'true'
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [aarch64, x86_64]
+    
+    steps:
       - uses: actions/checkout@v4
 
       - name: Download macOS artifacts

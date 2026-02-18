@@ -186,7 +186,7 @@ jobs:
 
       - name: Organize macOS artifacts based on signing status
         env:
-          SIGNING_SUCCESS: ${{ needs.Sign-macOS-Artifacts.result == 'success' }}
+          SIGNING_SUCCESS: ${{ needs.Sign-macOS-Artifacts.outputs.signed == 'true' }}
         run: |
           if [ "${{ env.SIGNING_SUCCESS }}" = "true" ]; then
             echo "Using signed macOS artifacts"
@@ -225,7 +225,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NIGHTLY_VERSION: ${{ needs.Check-and-Prepare.outputs.nightly_version }}
           COMMIT_HASH: ${{ needs.Check-and-Prepare.outputs.commit_hash }}
-          SIGNING_SUCCESS: ${{ needs.Sign-macOS-Artifacts.result == 'success' }}
+          SIGNING_SUCCESS: ${{ needs.Sign-macOS-Artifacts.outputs.signed == 'true' }}
         run: |
           # Create release notes
           cat > release_notes.md << 'EOF'
