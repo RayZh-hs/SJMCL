@@ -39,8 +39,9 @@ interface TaskContextType {
     params: TaskParam[]
   ) => void;
   handleCancelProgressiveTaskGroup: (taskGroup: string) => void;
-  handleResumeProgressiveTaskGroup: (taskGroup: string) => void;
   handleStopProgressiveTaskGroup: (taskGroup: string) => void;
+  handleResumeProgressiveTaskGroup: (taskGroup: string) => void;
+  handleClearHistoryTaskGroups: () => void;
 }
 
 export const TaskContext = createContext<TaskContextType | undefined>(
@@ -58,7 +59,8 @@ export const TaskContextProvider: React.FC<{ children: React.ReactNode }> = ({
   const [tasks, setTasks] = useState<TaskGroupDesc[]>([]);
   const [generalPercent, setGeneralPercent] = useState<number>();
   const { t } = useTranslation();
-  const loadingToastRef = React.useRef<ToastId | null>(null);
+  const modLoaderLoadingToastRef = React.useRef<ToastId | null>(null);
+  const optifineLoadingToastRef = React.useRef<ToastId | null>(null);
 
   const updateGroupInfo = useCallback((group: TaskGroupDesc) => {
     if (group.status === GTaskEventStatusEnums.Completed) {
@@ -193,6 +195,21 @@ export const TaskContextProvider: React.FC<{ children: React.ReactNode }> = ({
     [toast]
   );
 
+  const handleStopProgressiveTaskGroup = useCallback(
+    (taskGroup: string) => {
+      TaskService.stopProgressiveTaskGroup(taskGroup).then((response) => {
+        if (response.status !== "success") {
+          toast({
+            title: response.message,
+            description: response.details,
+            status: "error",
+          });
+        }
+      });
+    },
+    [toast]
+  );
+
   const handleResumeProgressiveTaskGroup = useCallback(
     (taskGroup: string) => {
       TaskService.resumeProgressiveTaskGroup(taskGroup).then((response) => {
@@ -208,20 +225,20 @@ export const TaskContextProvider: React.FC<{ children: React.ReactNode }> = ({
     [toast]
   );
 
-  const handleStopProgressiveTaskGroup = useCallback(
-    (taskGroup: string) => {
-      TaskService.stopProgressiveTaskGroup(taskGroup).then((response) => {
-        if (response.status !== "success") {
-          toast({
-            title: response.message,
-            description: response.details,
-            status: "error",
-          });
-        }
-      });
-    },
-    [toast]
-  );
+  const isActiveGroup = (t: TaskGroupDesc) =>
+    t.status === GTaskEventStatusEnums.Started ||
+    t.status === GTaskEventStatusEnums.Stopped;
+
+  const handleClearHistoryTaskGroups = useCallback(() => {
+    setTasks((prev) => {
+      prev
+        .filter((t) => !isActiveGroup(t))
+        .forEach((group) => {
+          TaskService.deleteProgressiveTaskGroup(group.taskGroup);
+        });
+      return prev.filter(isActiveGroup);
+    });
+  }, []);
 
   useEffect(() => {
     const unlisten = TaskService.onProgressiveTaskUpdate(
@@ -412,7 +429,7 @@ export const TaskContextProvider: React.FC<{ children: React.ReactNode }> = ({
             return task;
           });
 
-          const { name, version } = parseTaskGroup(payload.taskGroup);
+          const { name, params } = parseTaskGroup(payload.taskGroup);
 
           toast({
             status:
@@ -422,9 +439,7 @@ export const TaskContextProvider: React.FC<{ children: React.ReactNode }> = ({
             title: t(
               `Services.task.onTaskGroupUpdate.status.${payload.event}`,
               {
-                param: t(`DownloadTasksPage.task.${name}`, {
-                  param: version || "",
-                }),
+                param: t(`DownloadTasksPage.task.${name}`, params),
               }
             ),
           });
@@ -435,15 +450,19 @@ export const TaskContextProvider: React.FC<{ children: React.ReactNode }> = ({
               case "change-mod-loader":
                 getInstanceList(true);
                 break;
+              case "game-client-w-java":
+                getInstanceList(true);
+                getJavaInfos(true);
+                break;
               case "forge-libraries":
               case "neoforge-libraries":
-              case "optifine-libraries":
-                if (version) {
+                if (params.param || params.param1) {
+                  const instanceId = params.param || params.param1;
                   let instanceName = getInstanceList()?.find(
-                    (i) => i.id === version
+                    (i) => i.id === instanceId
                   )?.name;
-                  if (loadingToastRef.current) return newTasks;
-                  loadingToastRef.current = toast({
+                  if (modLoaderLoadingToastRef.current) return newTasks;
+                  modLoaderLoadingToastRef.current = toast({
                     title: t(
                       "Services.instance.finishModLoaderInstall.loading",
                       {
@@ -452,13 +471,53 @@ export const TaskContextProvider: React.FC<{ children: React.ReactNode }> = ({
                     ),
                     status: "loading",
                   });
-                  InstanceService.finishModLoaderInstall(version).then(
+                  InstanceService.finishModLoaderInstall(instanceId).then(
                     (response) => {
-                      if (loadingToastRef.current) {
-                        closeToast(loadingToastRef.current);
-                        loadingToastRef.current = null;
+                      if (modLoaderLoadingToastRef.current) {
+                        closeToast(modLoaderLoadingToastRef.current);
+                        modLoaderLoadingToastRef.current = null;
                       }
                       if (response.status === "success") {
+                        getInstanceList(true);
+                        toast({
+                          title: response.message,
+                          status: "success",
+                        });
+                      } else {
+                        toast({
+                          title: response.message,
+                          description: response.details,
+                          status: "error",
+                        });
+                      }
+                    }
+                  );
+                }
+                break;
+              case "optifine-libraries":
+                if (params.param || params.param1) {
+                  const instanceId = params.param || params.param1;
+                  let instanceName = getInstanceList()?.find(
+                    (i) => i.id === instanceId
+                  )?.name;
+                  if (optifineLoadingToastRef.current) return newTasks;
+                  optifineLoadingToastRef.current = toast({
+                    title: t(
+                      "Services.instance.finishOptiFineLoaderInstall.loading",
+                      {
+                        instanceName,
+                      }
+                    ),
+                    status: "loading",
+                  });
+                  InstanceService.finishOptiFineLoaderInstall(instanceId).then(
+                    (response) => {
+                      if (optifineLoadingToastRef.current) {
+                        closeToast(optifineLoadingToastRef.current);
+                        optifineLoadingToastRef.current = null;
+                      }
+                      if (response.status === "success") {
+                        getInstanceList(true);
                         toast({
                           title: response.message,
                           status: "success",
@@ -604,8 +663,9 @@ export const TaskContextProvider: React.FC<{ children: React.ReactNode }> = ({
         generalPercent,
         handleScheduleProgressiveTaskGroup,
         handleCancelProgressiveTaskGroup,
-        handleResumeProgressiveTaskGroup,
         handleStopProgressiveTaskGroup,
+        handleResumeProgressiveTaskGroup,
+        handleClearHistoryTaskGroups,
       }}
     >
       {children}
@@ -625,7 +685,7 @@ export const parseTaskGroup = (
   taskGroup: string
 ): {
   name: string;
-  version?: string;
+  params: Record<string, string>;
   timestamp: number;
   isRetry: boolean;
   rawName: string;
@@ -642,11 +702,17 @@ export const parseTaskGroup = (
     timestamp = parseInt(taskGroup.substring(lastAtIndex + 1));
   }
 
-  const [name, version] = rawName.split("?");
+  const [name, paramString] = rawName.split("?");
+  const params = paramString ? paramString.split("&") : [];
 
   return {
     name: name.replace(/^retry-/, ""),
-    version,
+    params:
+      params.length === 1
+        ? { param: params[0] }
+        : Object.fromEntries(
+            params.map((param, index) => [`param${index + 1}`, param])
+          ),
     isRetry: name.startsWith("retry-"),
     timestamp: timestamp,
     rawName,
