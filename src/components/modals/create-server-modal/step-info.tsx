@@ -1,6 +1,4 @@
 import {
-  Alert,
-  AlertIcon,
   Box,
   Button,
   ModalBody,
@@ -9,7 +7,6 @@ import {
   NumberInputField,
   Stack,
   Switch,
-  Text,
 } from "@chakra-ui/react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -592,18 +589,6 @@ export const CreateServerInfoStep: React.FC<CreateServerInfoStepProps> = ({
     <>
       <ModalBody>
         <Stack spacing={5} h="100%">
-          <Alert status="info" borderRadius="lg" alignItems="flex-start">
-            <AlertIcon mt={0.5} />
-            <Stack spacing={0.5}>
-              <Text fontSize="sm" fontWeight="semibold">
-                Minecraft {selectedGameVersion?.id || "None selected"}
-              </Text>
-              <Text fontSize="xs" className="secondary-text">
-                Loader: {loaderLabel}
-              </Text>
-            </Stack>
-          </Alert>
-
           <Box flex={1} minW={0} overflowY="auto">
             <Stack spacing={5}>
               <Section
