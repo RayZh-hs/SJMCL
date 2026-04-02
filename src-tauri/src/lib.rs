@@ -1,6 +1,7 @@
 mod account;
 mod discover;
 mod error;
+mod game_server;
 mod instance;
 mod intelligence;
 mod launch;
@@ -14,6 +15,7 @@ mod utils;
 use account::helpers::authlib_injector::info::refresh_and_update_auth_servers;
 use account::helpers::offline::yggdrasil_server::YggdrasilServer;
 use account::models::AccountInfo;
+use game_server::models::ManagedGameServerRuntime;
 use instance::helpers::misc::refresh_and_update_instances;
 use instance::helpers::mods::translation::LocalModTranslationsCache;
 use instance::models::misc::Instance;
@@ -156,6 +158,13 @@ pub async fn run() {
         resource::commands::fetch_resource_list_by_name,
         resource::commands::fetch_resource_version_packs,
         resource::commands::download_game_server,
+        game_server::commands::install_managed_game_server,
+        game_server::commands::retrieve_managed_game_server,
+        game_server::commands::update_managed_game_server,
+        game_server::commands::set_managed_game_server_eula,
+        game_server::commands::import_managed_game_server_world,
+        game_server::commands::start_managed_game_server,
+        game_server::commands::stop_managed_game_server,
         resource::commands::fetch_remote_resource_by_local,
         resource::commands::update_mods,
         resource::commands::fetch_remote_resource_by_id,
@@ -228,6 +237,9 @@ pub async fn run() {
 
         let launching_queue = Vec::<LaunchingState>::new();
         app.manage(Mutex::new(launching_queue));
+
+        let managed_server_runtimes = HashMap::<String, ManagedGameServerRuntime>::new();
+        app.manage(Mutex::new(managed_server_runtimes));
 
         // start local yggdrasil server for offline accounts
         let local_ygg_server = YggdrasilServer::new();

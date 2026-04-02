@@ -7,13 +7,18 @@ import {
   InstanceMoreWidget,
   InstanceScreenshotsWidget,
 } from "@/components/instance-widgets";
+import { useInstanceSharedData } from "@/contexts/instance";
+import { isServerInstance } from "@/utils/instance";
 
 const InstanceOverviewPage = () => {
+  const { summary } = useInstanceSharedData();
   const widgetList = [
     { content: <InstanceBasicInfoWidget />, colSpan: 1 },
     { content: <InstanceLastPlayedWidget />, colSpan: 1 },
     { content: <InstanceModsWidget />, colSpan: 1 },
-    { content: <InstanceScreenshotsWidget />, colSpan: 1 },
+    ...(!isServerInstance(summary)
+      ? [{ content: <InstanceScreenshotsWidget />, colSpan: 1 }]
+      : []),
     { content: <InstanceMoreWidget />, colSpan: 1 },
   ];
 

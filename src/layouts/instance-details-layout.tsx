@@ -1,7 +1,7 @@
 import { Button, HStack, Icon, Text, VStack } from "@chakra-ui/react";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { useRouter } from "next/router";
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IconType } from "react-icons";
 import { FaRegStar, FaStar } from "react-icons/fa6";
@@ -30,7 +30,9 @@ import {
 import { useSharedModals } from "@/contexts/shared-modal";
 import { useToast } from "@/contexts/toast";
 import { isChakraColor } from "@/enums/misc";
+import { GameServerService } from "@/services/game-server";
 import { InstanceService } from "@/services/instance";
+import { isServerInstance } from "@/utils/instance";
 
 const InstanceDetailsLayout: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -57,6 +59,11 @@ const InstanceDetailsLayoutContent: React.FC<{ children: React.ReactNode }> = ({
   const { config } = useLauncherConfig();
   const primaryColor = config.appearance.theme.primaryColor;
   const navBarType = config.general.functionality.instancesNavType;
+  const isManagedServer = isServerInstance(summary);
+  const [serverState, setServerState] = useState<{
+    running: boolean;
+    eulaAccepted: boolean;
+  }>();
 
   const handleCreateLaunchDesktopShortcut = useCallback(
     (instanceId: string) => {
@@ -107,20 +114,24 @@ const InstanceDetailsLayoutContent: React.FC<{ children: React.ReactNode }> = ({
         await openPath(summary?.versionPath || "");
       },
     },
-    {
-      icon: LuSquarePlus,
-      label: t("InstanceDetailsLayout.secMenu.createShortcut"),
-      danger: false,
-      onClick: () => {
-        if (instanceId) handleCreateLaunchDesktopShortcut(instanceId);
-      },
-    },
-    {
-      icon: LuPackagePlus,
-      label: t("InstanceDetailsLayout.secMenu.exportModPack"),
-      danger: false,
-      onClick: () => {},
-    },
+    ...(!isManagedServer
+      ? [
+          {
+            icon: LuSquarePlus,
+            label: t("InstanceDetailsLayout.secMenu.createShortcut"),
+            danger: false,
+            onClick: () => {
+              if (instanceId) handleCreateLaunchDesktopShortcut(instanceId);
+            },
+          },
+          {
+            icon: LuPackagePlus,
+            label: t("InstanceDetailsLayout.secMenu.exportModPack"),
+            danger: false,
+            onClick: () => {},
+          },
+        ]
+      : []),
     {
       icon: "delete",
       label: t("InstanceMenu.label.delete"),
@@ -133,15 +144,77 @@ const InstanceDetailsLayoutContent: React.FC<{ children: React.ReactNode }> = ({
   ];
 
   const instanceTabList: { key: string; icon: IconType }[] = [
-    { key: "overview", icon: LuHouse },
-    { key: "worlds", icon: LuEarth },
-    { key: "mods", icon: LuSquareLibrary },
-    { key: "resourcepacks", icon: LuPackage },
-    { key: "schematics", icon: LuBookDashed },
-    { key: "shaderpacks", icon: LuHaze },
-    { key: "screenshots", icon: LuFullscreen },
-    { key: "settings", icon: LuSettings },
+    ...(isManagedServer
+      ? [
+          { key: "overview", icon: LuHouse },
+          { key: "worlds", icon: LuEarth },
+          { key: "mods", icon: LuSquareLibrary },
+          { key: "resourcepacks", icon: LuPackage },
+          { key: "settings", icon: LuSettings },
+        ]
+      : [
+          { key: "overview", icon: LuHouse },
+          { key: "worlds", icon: LuEarth },
+          { key: "mods", icon: LuSquareLibrary },
+          { key: "resourcepacks", icon: LuPackage },
+          { key: "schematics", icon: LuBookDashed },
+          { key: "shaderpacks", icon: LuHaze },
+          { key: "screenshots", icon: LuFullscreen },
+          { key: "settings", icon: LuSettings },
+        ]),
   ];
+
+  useEffect(() => {
+    if (!summary || !isManagedServer) {
+      setServerState(undefined);
+      return;
+    }
+    GameServerService.retrieveManagedGameServer(summary.id).then((response) => {
+      if (response.status === "success") {
+        setServerState({
+          running: response.data.running,
+          eulaAccepted: response.data.eulaAccepted,
+        });
+      }
+    });
+  }, [isManagedServer, summary]);
+
+  const launchButtonLabel = useMemo(() => {
+    if (!isManagedServer) return t("InstanceDetailsLayout.button.launch");
+    if (!serverState?.eulaAccepted) return "Agree to EULA";
+    return serverState?.running ? "Stop Server" : "Start Server";
+  }, [isManagedServer, serverState?.eulaAccepted, serverState?.running, t]);
+
+  const handleLaunchAction = async () => {
+    if (!summary) return;
+    if (!isManagedServer) {
+      openSharedModal("launch", { instanceId: summary?.id });
+      return;
+    }
+
+    const response = !serverState?.eulaAccepted
+      ? await GameServerService.setManagedGameServerEula(summary.id, true)
+      : serverState?.running
+        ? await GameServerService.stopManagedGameServer(summary.id)
+        : await GameServerService.startManagedGameServer(summary.id);
+    if (response.status !== "success") {
+      toast({
+        title: response.message,
+        description: response.details,
+        status: "error",
+      });
+      return;
+    }
+    const refreshed = await GameServerService.retrieveManagedGameServer(
+      summary.id
+    );
+    if (refreshed.status === "success") {
+      setServerState({
+        running: refreshed.data.running,
+        eulaAccepted: refreshed.data.eulaAccepted,
+      });
+    }
+  };
 
   return (
     <Section
@@ -190,11 +263,9 @@ const InstanceDetailsLayoutContent: React.FC<{ children: React.ReactNode }> = ({
             size="xs"
             ml={1}
             colorScheme={primaryColor}
-            onClick={() => {
-              openSharedModal("launch", { instanceId: summary?.id });
-            }}
+            onClick={handleLaunchAction}
           >
-            {t("InstanceDetailsLayout.button.launch")}
+            {launchButtonLabel}
           </Button>
         </HStack>
       }

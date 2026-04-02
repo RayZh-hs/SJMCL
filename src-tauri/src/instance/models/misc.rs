@@ -54,6 +54,14 @@ impl FromStr for ModLoaderType {
   }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum InstanceType {
+  #[default]
+  Client,
+  Server,
+}
+
 impl ModLoaderType {
   pub fn to_icon_path(self) -> &'static str {
     match self {
@@ -84,6 +92,7 @@ structstruck::strike! {
   #[strikethrough[serde(rename_all = "camelCase", default)]]
   pub struct Instance {
     pub id: String,
+    pub instance_type: InstanceType,
     pub name: String,
     pub description: String,
     pub tag: Option<String>,
@@ -127,6 +136,7 @@ impl Instance {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InstanceSummary {
   pub id: String,
+  pub instance_type: InstanceType,
   pub name: String,
   pub description: String,
   pub tag: Option<String>,
@@ -152,6 +162,7 @@ impl InstanceSummary {
   ) -> Self {
     InstanceSummary {
       id,
+      instance_type: instance.instance_type,
       name: instance.name.clone(),
       description: instance.description.clone(),
       tag: instance.tag.clone(),

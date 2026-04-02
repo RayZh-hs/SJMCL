@@ -8,6 +8,7 @@ import {
   useDisclosure,
 } from "@chakra-ui/react";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,8 +30,10 @@ import { OtherResourceType } from "@/enums/resource";
 import { GetStateFlag } from "@/hooks/get-state";
 import { GameServerInfo } from "@/models/instance/misc";
 import { WorldInfo } from "@/models/instance/world";
+import { GameServerService } from "@/services/game-server";
 import { InstanceService } from "@/services/instance";
 import { UNIXToISOString, formatRelativeTime } from "@/utils/datetime";
+import { isServerInstance } from "@/utils/instance";
 import { base64ImgSrc } from "@/utils/string";
 
 const InstanceWorldsPage = () => {
@@ -44,6 +47,7 @@ const InstanceWorldsPage = () => {
     getWorldList,
     isWorldListLoading: isLoading,
   } = useInstanceSharedData();
+  const isManagedServer = isServerInstance(summary);
   const accordionStates = config.states.instanceWorldsPage.accordionStates;
   const toast = useToast();
   const { openSharedModal, openGenericConfirmDialog } = useSharedModals();
@@ -108,13 +112,14 @@ const InstanceWorldsPage = () => {
   }, [handleRetrieveGameServerList]);
 
   useEffect(() => {
+    if (isManagedServer) return;
     refreshGameServerList();
     // refresh every minute to query server info
     const intervalId = setInterval(async () => {
       handleRetrieveGameServerList(true);
     }, 60000);
     return () => clearInterval(intervalId);
-  }, [instanceId, handleRetrieveGameServerList, refreshGameServerList]);
+  }, [handleRetrieveGameServerList, isManagedServer, refreshGameServerList]);
 
   const handleDeleteServer = useCallback(
     (server: GameServerInfo) => {
@@ -144,20 +149,53 @@ const InstanceWorldsPage = () => {
     {
       icon: "openFolder",
       onClick: () => {
-        openInstanceSubdir(InstanceSubdirType.Saves);
+        openInstanceSubdir(
+          isManagedServer ? InstanceSubdirType.Root : InstanceSubdirType.Saves
+        );
       },
     },
-    {
-      icon: "download",
-      onClick: () => {
-        openSharedModal("download-resource", {
-          initialResourceType: OtherResourceType.World,
-        });
-      },
-    },
+    ...(!isManagedServer
+      ? [
+          {
+            icon: "download",
+            onClick: () => {
+              openSharedModal("download-resource", {
+                initialResourceType: OtherResourceType.World,
+              });
+            },
+          },
+        ]
+      : []),
     {
       icon: "add",
-      onClick: () => {
+      onClick: async () => {
+        if (!instanceId) return;
+        if (isManagedServer) {
+          const selectedPath = await open({
+            multiple: false,
+            filters: [
+              {
+                name: "World archive",
+                extensions: ["zip"],
+              },
+            ],
+          });
+          if (typeof selectedPath !== "string") return;
+          const response = await GameServerService.importManagedGameServerWorld(
+            instanceId,
+            selectedPath
+          );
+          if (response.status === "success") {
+            getWorldListWrapper(true);
+          } else {
+            toast({
+              title: response.message,
+              description: response.details,
+              status: "error",
+            });
+          }
+          return;
+        }
         handleImportResource({
           filterName: t("InstanceDetailsLayout.instanceTabList.worlds"),
           filterExt: ["zip"],
@@ -176,20 +214,29 @@ const InstanceWorldsPage = () => {
     },
   ];
 
-  const serverSecMenuOperations = [
-    {
-      icon: "add",
-      onClick: () => {
-        onAddGameServerModalOpen();
-      },
-    },
-    {
-      icon: "refresh",
-      onClick: () => {
-        refreshGameServerList();
-      },
-    },
-  ];
+  const serverSecMenuOperations = isManagedServer
+    ? [
+        {
+          icon: "refresh",
+          onClick: () => {
+            getWorldListWrapper(true);
+          },
+        },
+      ]
+    : [
+        {
+          icon: "add",
+          onClick: () => {
+            onAddGameServerModalOpen();
+          },
+        },
+        {
+          icon: "refresh",
+          onClick: () => {
+            refreshGameServerList();
+          },
+        },
+      ];
 
   const worldItemMenuOperations = (save: WorldInfo) => [
     {
@@ -215,7 +262,7 @@ const InstanceWorldsPage = () => {
         onWorldLevelDataModallOpen();
       },
     },
-    ...(summary?.supportQuickPlay
+    ...(!isManagedServer && summary?.supportQuickPlay
       ? [
           {
             label: t("InstanceWorldsPage.worldList.launch"),
@@ -360,9 +407,17 @@ const InstanceWorldsPage = () => {
 
       <Section
         isAccordion
-        title={t("InstanceWorldsPage.serverList.title")}
+        title={
+          isManagedServer
+            ? "World Setup"
+            : t("InstanceWorldsPage.serverList.title")
+        }
         initialIsOpen={accordionStates[1]}
-        titleExtra={<CountTag count={gameServers.length} />}
+        titleExtra={
+          <CountTag
+            count={isManagedServer ? worlds.length : gameServers.length}
+          />
+        }
         onAccordionToggle={(isOpen) => {
           update(
             "states.instanceWorldsPage.accordionStates",
@@ -384,7 +439,15 @@ const InstanceWorldsPage = () => {
           </HStack>
         }
       >
-        {gameServers.length > 0 ? (
+        {isManagedServer ? (
+          <Center minH={16}>
+            <Text fontSize="sm" className="secondary-text">
+              Import a zipped world to replace the active server world, or leave
+              the configured level name untouched and let the server generate a
+              fresh one on next restart.
+            </Text>
+          </Center>
+        ) : gameServers.length > 0 ? (
           <OptionItemGroup
             items={gameServers.map((server) => (
               <OptionItem
@@ -464,7 +527,7 @@ const InstanceWorldsPage = () => {
           <Empty withIcon={false} size="sm" />
         )}
       </Section>
-      {instanceId && (
+      {!isManagedServer && instanceId && (
         <AddGameServerModal
           instanceId={instanceId}
           isOpen={isAddGameServerModalOpen}

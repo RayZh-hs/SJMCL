@@ -9,6 +9,11 @@ export enum ModLoaderStatus {
   Installed = "Installed",
 }
 
+export enum InstanceType {
+  Client = "client",
+  Server = "server",
+}
+
 export interface ModLoader {
   status: ModLoaderStatus;
   loaderType: ModLoaderType;
@@ -24,6 +29,7 @@ export interface OptiFine {
 
 export interface InstanceSummary {
   id: string;
+  instanceType: InstanceType;
   iconSrc: string;
   name: string;
   description?: string;

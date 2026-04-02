@@ -24,6 +24,8 @@ import {
   LuListFilter,
   LuPlay,
   LuPlus,
+  LuServer,
+  LuSquare,
 } from "react-icons/lu";
 import { CommonIconButton } from "@/components/common/common-icon-button";
 import { Section } from "@/components/common/section";
@@ -32,8 +34,11 @@ import InstancesView from "@/components/instances-view";
 import { useLauncherConfig } from "@/contexts/config";
 import { useGlobalData } from "@/contexts/global-data";
 import { useSharedModals } from "@/contexts/shared-modal";
+import { useToast } from "@/contexts/toast";
 import { InstanceSummary } from "@/models/instance/misc";
+import { GameServerService } from "@/services/game-server";
 import { getGameDirName } from "@/utils/instance";
+import { isServerInstance } from "@/utils/instance";
 
 const getQueryString = (value: string | string[] | undefined): string => {
   if (Array.isArray(value)) return value[0] || "";
@@ -47,12 +52,16 @@ const InstanceListPage = () => {
   const primaryColor = config.appearance.theme.primaryColor;
   const selectedViewType = config.states.allInstancesPage.viewType;
   const selectedSortByType = config.states.allInstancesPage.sortBy;
+  const toast = useToast();
   const dir = getQueryString(router.query.dir);
   const tag = getQueryString(router.query.tag);
 
   const { openSharedModal } = useSharedModals();
   const { selectedInstance, getInstanceList } = useGlobalData();
   const [instanceList, setInstanceList] = useState<InstanceSummary[]>([]);
+  const [instanceCategory, setInstanceCategory] = useState<"client" | "server">(
+    "client"
+  );
 
   const filterInstances = useMemo(
     () => (all: InstanceSummary[]) => {
@@ -67,6 +76,30 @@ const InstanceListPage = () => {
     if (!router.isReady) return;
     setInstanceList(filterInstances(getInstanceList() || []));
   }, [filterInstances, getInstanceList, router.isReady]);
+
+  useEffect(() => {
+    if (selectedInstance) {
+      setInstanceCategory(
+        isServerInstance(selectedInstance) ? "server" : "client"
+      );
+    }
+  }, [selectedInstance]);
+
+  const visibleInstances = useMemo(
+    () =>
+      instanceList.filter((instance) =>
+        instanceCategory === "server"
+          ? isServerInstance(instance)
+          : !isServerInstance(instance)
+      ),
+    [instanceCategory, instanceList]
+  );
+
+  const selectedVisibleInstance =
+    selectedInstance &&
+    visibleInstances.some((instance) => instance.id === selectedInstance.id)
+      ? selectedInstance
+      : visibleInstances[0];
 
   const title = useMemo(() => {
     if (tag) return t(`Enums.chakraColors.${tag}`);
@@ -154,6 +187,33 @@ const InstanceListPage = () => {
           />
           <FilterAndSortMenu />
           <SegmentedControl
+            selected={instanceCategory}
+            onSelectItem={(value) =>
+              setInstanceCategory(value as "client" | "server")
+            }
+            size="xs"
+            items={[
+              {
+                value: "client",
+                label: (
+                  <HStack spacing={1}>
+                    <LuPlay />
+                    <Text fontSize="xs">Clients</Text>
+                  </HStack>
+                ),
+              },
+              {
+                value: "server",
+                label: (
+                  <HStack spacing={1}>
+                    <LuServer />
+                    <Text fontSize="xs">Servers</Text>
+                  </HStack>
+                ),
+              },
+            ]}
+          />
+          <SegmentedControl
             selected={selectedViewType}
             onSelectItem={(s) => {
               update("states.allInstancesPage.viewType", s as string);
@@ -179,27 +239,57 @@ const InstanceListPage = () => {
             {t("AllInstancesPage.button.addAndImport")}
           </Button>
           <Button
-            leftIcon={<LuPlay />}
+            leftIcon={instanceCategory === "server" ? <LuSquare /> : <LuPlay />}
             size="xs"
             colorScheme={primaryColor}
-            isDisabled={!selectedInstance}
-            onClick={() => {
-              if (selectedInstance) {
+            isDisabled={!selectedVisibleInstance}
+            onClick={async () => {
+              if (!selectedVisibleInstance) return;
+              if (instanceCategory === "server") {
+                const status =
+                  await GameServerService.retrieveManagedGameServer(
+                    selectedVisibleInstance.id
+                  );
+                if (status.status !== "success") {
+                  toast({
+                    title: status.message,
+                    description: status.details,
+                    status: "error",
+                  });
+                  return;
+                }
+                const response = status.data.running
+                  ? await GameServerService.stopManagedGameServer(
+                      selectedVisibleInstance.id
+                    )
+                  : await GameServerService.startManagedGameServer(
+                      selectedVisibleInstance.id
+                    );
+                if (response.status !== "success") {
+                  toast({
+                    title: response.message,
+                    description: response.details,
+                    status: "error",
+                  });
+                }
+              } else {
                 openSharedModal("launch", {
-                  instanceId: selectedInstance.id,
+                  instanceId: selectedVisibleInstance.id,
                 });
               }
             }}
           >
-            {t("AllInstancesPage.button.launch")}
+            {instanceCategory === "server"
+              ? "Power"
+              : t("AllInstancesPage.button.launch")}
           </Button>
         </HStack>
       }
     >
       <Box overflow="auto" flexGrow={1} rounded="md">
         <InstancesView
-          instances={instanceList}
-          selectedInstance={selectedInstance}
+          instances={visibleInstances}
+          selectedInstance={selectedVisibleInstance}
           viewType={selectedViewType}
         />
       </Box>

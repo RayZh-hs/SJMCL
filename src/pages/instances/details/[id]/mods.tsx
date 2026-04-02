@@ -53,7 +53,7 @@ import { LocalModInfo } from "@/models/instance/misc";
 import { InstanceService } from "@/services/instance";
 import { ResourceService } from "@/services/resource";
 import { UtilsService } from "@/services/utils";
-import { parseModLoaderVersion } from "@/utils/instance";
+import { isServerInstance, parseModLoaderVersion } from "@/utils/instance";
 import { base64ImgSrc } from "@/utils/string";
 
 const InstanceModsPage = () => {
@@ -76,6 +76,7 @@ const InstanceModsPage = () => {
   const currentModLoaderType =
     summary?.modLoader?.loaderType ?? ModLoaderType.Unknown;
   const currentModLoaderVersion = summary?.modLoader?.version || "";
+  const isManagedServer = isServerInstance(summary);
 
   const [localMods, setLocalMods] = useState<LocalModInfo[]>([]);
   const [filteredMods, setFilteredMods] = useState<LocalModInfo[]>([]);
@@ -363,91 +364,93 @@ const InstanceModsPage = () => {
 
   return (
     <>
-      <Section
-        title={t("InstanceModsPage.modLoaderList.title")}
-        isAccordion
-        initialIsOpen={accordionStates[0]}
-        headExtra={
-          <Box
-            display="flex"
-            alignItems="center"
-            opacity={accordionStates[0] ? 0 : 1}
-            transition="opacity 0.2s ease"
-            mr={1}
-          >
-            {currentModLoaderType === ModLoaderType.Unknown ? (
-              <Text fontSize="xs" className="secondary-text">
-                {t("InstanceModsPage.modLoaderList.notInstalled")}
-              </Text>
-            ) : (
-              <HStack spacing={1.5}>
-                <Image
-                  src={`/images/icons/${modLoaderTypesToIcon[currentModLoaderType]}`}
-                  alt={currentModLoaderType}
-                  boxSize="16px"
-                  borderRadius="4px"
-                />
+      {!isManagedServer && (
+        <Section
+          title={t("InstanceModsPage.modLoaderList.title")}
+          isAccordion
+          initialIsOpen={accordionStates[0]}
+          headExtra={
+            <Box
+              display="flex"
+              alignItems="center"
+              opacity={accordionStates[0] ? 0 : 1}
+              transition="opacity 0.2s ease"
+              mr={1}
+            >
+              {currentModLoaderType === ModLoaderType.Unknown ? (
                 <Text fontSize="xs" className="secondary-text">
-                  {`${t("InstanceModsPage.modLoaderList.installed")} ${currentModLoaderType} ${parseModLoaderVersion(currentModLoaderVersion)}`}
+                  {t("InstanceModsPage.modLoaderList.notInstalled")}
                 </Text>
-              </HStack>
-            )}
-          </Box>
-        }
-        onAccordionToggle={(isOpen) => {
-          update(
-            "states.instanceModsPage.accordionStates",
-            accordionStates.toSpliced(0, 1, isOpen)
-          );
-        }}
-      >
-        <WrapCardGroup
-          items={modLoaderTypes.map((type) => ({
-            cardContent: (
-              <Flex justify="space-between" align="center">
-                <HStack spacing={2}>
+              ) : (
+                <HStack spacing={1.5}>
                   <Image
-                    src={`/images/icons/${modLoaderTypesToIcon[type]}`}
-                    alt={type}
-                    boxSize="28px"
+                    src={`/images/icons/${modLoaderTypesToIcon[currentModLoaderType]}`}
+                    alt={currentModLoaderType}
+                    boxSize="16px"
                     borderRadius="4px"
                   />
-                  <VStack spacing={0} alignItems="start">
-                    <Text
-                      fontSize="xs-sm"
-                      fontWeight={
-                        currentModLoaderType === type ? "bold" : "normal"
-                      }
-                      color={
-                        currentModLoaderType === type
-                          ? `${config.appearance.theme.primaryColor}.600`
-                          : "inherit"
-                      }
-                    >
-                      {type}
-                    </Text>
-                    <Text fontSize="xs" className="secondary-text">
-                      {currentModLoaderType === type
-                        ? parseModLoaderVersion(currentModLoaderVersion)
-                        : t("InstanceModsPage.modLoaderList.notInstalled")}
-                    </Text>
-                  </VStack>
+                  <Text fontSize="xs" className="secondary-text">
+                    {`${t("InstanceModsPage.modLoaderList.installed")} ${currentModLoaderType} ${parseModLoaderVersion(currentModLoaderVersion)}`}
+                  </Text>
                 </HStack>
-                <HStack spacing={0}>
-                  <IconButton
-                    aria-label="select"
-                    icon={<Icon as={LuChevronRight} boxSize={3.5} />}
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => handleTypeSelect(type)}
-                  />
-                </HStack>
-              </Flex>
-            ),
-            isSelected: currentModLoaderType === type,
-          }))}
-        />
-      </Section>
+              )}
+            </Box>
+          }
+          onAccordionToggle={(isOpen) => {
+            update(
+              "states.instanceModsPage.accordionStates",
+              accordionStates.toSpliced(0, 1, isOpen)
+            );
+          }}
+        >
+          <WrapCardGroup
+            items={modLoaderTypes.map((type) => ({
+              cardContent: (
+                <Flex justify="space-between" align="center">
+                  <HStack spacing={2}>
+                    <Image
+                      src={`/images/icons/${modLoaderTypesToIcon[type]}`}
+                      alt={type}
+                      boxSize="28px"
+                      borderRadius="4px"
+                    />
+                    <VStack spacing={0} alignItems="start">
+                      <Text
+                        fontSize="xs-sm"
+                        fontWeight={
+                          currentModLoaderType === type ? "bold" : "normal"
+                        }
+                        color={
+                          currentModLoaderType === type
+                            ? `${config.appearance.theme.primaryColor}.600`
+                            : "inherit"
+                        }
+                      >
+                        {type}
+                      </Text>
+                      <Text fontSize="xs" className="secondary-text">
+                        {currentModLoaderType === type
+                          ? parseModLoaderVersion(currentModLoaderVersion)
+                          : t("InstanceModsPage.modLoaderList.notInstalled")}
+                      </Text>
+                    </VStack>
+                  </HStack>
+                  <HStack spacing={0}>
+                    <IconButton
+                      aria-label="select"
+                      icon={<Icon as={LuChevronRight} boxSize={3.5} />}
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => handleTypeSelect(type)}
+                    />
+                  </HStack>
+                </Flex>
+              ),
+              isSelected: currentModLoaderType === type,
+            }))}
+          />
+        </Section>
+      )}
       <Section
         title={t("InstanceModsPage.modList.title")}
         isAccordion

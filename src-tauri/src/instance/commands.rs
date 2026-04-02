@@ -31,9 +31,9 @@ use crate::instance::helpers::server::{
 };
 use crate::instance::helpers::world::{load_level_data_from_nbt, load_world_info_from_dir};
 use crate::instance::models::misc::{
-  Instance, InstanceError, InstanceSubdirType, InstanceSummary, LocalModInfo, ModLoader,
-  ModLoaderStatus, ModLoaderType, OptiFine, ResourcePackInfo, SchematicInfo, ScreenshotInfo,
-  ShaderPackInfo,
+  Instance, InstanceError, InstanceSubdirType, InstanceSummary, InstanceType, LocalModInfo,
+  ModLoader, ModLoaderStatus, ModLoaderType, OptiFine, ResourcePackInfo, SchematicInfo,
+  ScreenshotInfo, ShaderPackInfo,
 };
 use crate::instance::models::world::base::WorldInfo;
 use crate::instance::models::world::level::LevelData;
@@ -281,7 +281,28 @@ pub async fn rename_instance(
     Some(x) => x,
     None => return Err(InstanceError::InstanceNotFoundByID.into()),
   };
-  let new_path = unify_instance_name(&instance.version_path, &new_name)?;
+  let new_path = if instance.instance_type == InstanceType::Server {
+    let version_root = instance
+      .version_path
+      .parent()
+      .ok_or(InstanceError::InvalidSourcePath)?
+      .to_path_buf();
+    let dst_dir = version_root.join(&new_name);
+    if dst_dir.exists() {
+      return Err(InstanceError::ConflictNameError.into());
+    }
+    fs::rename(&instance.version_path, &dst_dir).map_err(|_| InstanceError::FileMoveFailed)?;
+    let server_cfg_path = dst_dir.join(crate::game_server::commands::MANAGED_SERVER_CONFIG_FILE);
+    if server_cfg_path.exists() {
+      let mut server_cfg: crate::game_server::models::ManagedGameServerConfig =
+        serde_json::from_slice(&fs::read(&server_cfg_path)?)?;
+      server_cfg.name = new_name.clone();
+      fs::write(server_cfg_path, serde_json::to_vec_pretty(&server_cfg)?)?;
+    }
+    dst_dir
+  } else {
+    unify_instance_name(&instance.version_path, &new_name)?
+  };
 
   instance.version_path = new_path.clone();
   instance.name = new_name;
@@ -396,21 +417,40 @@ pub async fn retrieve_world_list(
     let instance = state
       .get(&instance_id)
       .ok_or(InstanceError::InstanceNotFoundByID)?;
-    instance.version.clone()
+    if instance.instance_type == InstanceType::Server {
+      String::new()
+    } else {
+      instance.version.clone()
+    }
   };
 
-  // difficulty setting was introduced in game version 14w02a
-  let has_difficulty_support = compare_game_versions(&app, &game_version, "14w02a", false)
-    .await
-    .is_ge();
+  let has_difficulty_support = if game_version.is_empty() {
+    true
+  } else {
+    // difficulty setting was introduced in game version 14w02a
+    compare_game_versions(&app, &game_version, "14w02a", false)
+      .await
+      .is_ge()
+  };
 
   let mut world_list: Vec<WorldInfo> = Vec::new();
 
-  let worlds_dir =
-    match get_instance_subdir_path_by_id(&app, &instance_id, &InstanceSubdirType::Saves) {
-      Some(path) => path,
-      None => return Ok(Vec::new()),
-    };
+  let worlds_dir = {
+    let binding = app.state::<Mutex<HashMap<String, Instance>>>();
+    let state = binding.lock()?;
+    let instance = state
+      .get(&instance_id)
+      .ok_or(InstanceError::InstanceNotFoundByID)?;
+    if instance.instance_type == InstanceType::Server {
+      instance.version_path.clone()
+    } else {
+      get_instance_subdir_path_by_id(&app, &instance_id, &InstanceSubdirType::Saves)
+        .unwrap_or_default()
+    }
+  };
+  if worlds_dir.as_os_str().is_empty() {
+    return Ok(Vec::new());
+  }
   if let Ok(world_paths) = get_subdirectories(worlds_dir) {
     for path in world_paths {
       if let Ok(info) = load_world_info_from_dir(&path, has_difficulty_support).await {
@@ -891,11 +931,21 @@ pub async fn retrieve_world_details(
   instance_id: String,
   world_name: String,
 ) -> SJMCLResult<LevelData> {
-  let worlds_dir =
-    match get_instance_subdir_path_by_id(&app, &instance_id, &InstanceSubdirType::Saves) {
-      Some(path) => path,
-      None => return Err(InstanceError::WorldNotExistError.into()),
-    };
+  let worlds_dir = {
+    let binding = app.state::<Mutex<HashMap<String, Instance>>>();
+    let state = binding.lock()?;
+    let instance = state
+      .get(&instance_id)
+      .ok_or(InstanceError::InstanceNotFoundByID)?;
+    if instance.instance_type == InstanceType::Server {
+      instance.version_path.clone()
+    } else {
+      match get_instance_subdir_path_by_id(&app, &instance_id, &InstanceSubdirType::Saves) {
+        Some(path) => path,
+        None => return Err(InstanceError::WorldNotExistError.into()),
+      }
+    }
+  };
   let level_path = worlds_dir.join(world_name).join("level.dat");
   if tokio::fs::metadata(&level_path).await.is_err() {
     return Err(InstanceError::LevelNotExistError.into());
@@ -984,6 +1034,7 @@ pub async fn create_instance(
   // Create instance config
   let instance = Instance {
     id: format!("{}:{}", directory.name, name.clone()),
+    instance_type: InstanceType::Client,
     name: name.clone(),
     version: game.id.clone(),
     version_path: version_path.clone(),

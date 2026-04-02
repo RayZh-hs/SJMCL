@@ -51,6 +51,7 @@ import {
   formatTimeInterval,
 } from "@/utils/datetime";
 import { getInstanceIconSrc, parseModLoaderVersion } from "@/utils/instance";
+import { isServerInstance } from "@/utils/instance";
 import { base64ImgSrc } from "@/utils/string";
 
 // All these widgets are used in InstanceContext with WarpCard wrapped.
@@ -446,14 +447,22 @@ export const InstanceMoreWidget = () => {
   const { id } = router.query;
   const instanceId = Array.isArray(id) ? id[0] : id;
   const { summary } = useInstanceSharedData();
+  const isManagedServer = isServerInstance(summary);
 
-  const features: Record<string, IconType> = {
-    worlds: LuEarth,
-    resourcepacks: LuPackage,
-    schematics: LuBookDashed,
-    shaderpacks: LuHaze,
-    settings: LuSettings,
-  };
+  const features: Record<string, IconType> = isManagedServer
+    ? {
+        worlds: LuEarth,
+        resourcepacks: LuPackage,
+        mods: LuSquareLibrary,
+        settings: LuSettings,
+      }
+    : {
+        worlds: LuEarth,
+        resourcepacks: LuPackage,
+        schematics: LuBookDashed,
+        shaderpacks: LuHaze,
+        settings: LuSettings,
+      };
 
   return (
     <InstanceWidgetBase title={t("InstanceWidgets.more.title")} icon={LuShapes}>

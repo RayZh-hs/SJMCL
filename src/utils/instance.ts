@@ -2,10 +2,17 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { t } from "i18next";
 import { ModLoaderType } from "@/enums/instance";
 import { GameDirectory } from "@/models/config";
-import { InstanceSummary } from "@/models/instance/misc";
+import { InstanceSummary, InstanceType } from "@/models/instance/misc";
 import { isDirNameInvalid } from "@/utils/string";
 
 export const generateInstanceDesc = (instance: InstanceSummary) => {
+  if (instance.instanceType === InstanceType.Server) {
+    const loader =
+      instance.modLoader.loaderType === ModLoaderType.Unknown
+        ? "Vanilla Server"
+        : `${instance.modLoader.loaderType} Server`;
+    return [instance.version || "", loader].filter(Boolean).join(", ");
+  }
   if (instance.modLoader.loaderType === ModLoaderType.Unknown) {
     return instance.version || "";
   }
@@ -16,6 +23,10 @@ export const generateInstanceDesc = (instance: InstanceSummary) => {
     .filter(Boolean)
     .join(", ");
 };
+
+export const isServerInstance = (
+  instance?: Pick<InstanceSummary, "instanceType">
+) => instance?.instanceType === InstanceType.Server;
 
 const SPECIAL_GAME_DIR_NAMES = [
   "CURRENT_DIR",

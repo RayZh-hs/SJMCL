@@ -40,6 +40,7 @@ import { InstanceSummary } from "@/models/instance/misc";
 import { ResponseError } from "@/models/response";
 import { AccountService } from "@/services/account";
 import { LaunchService } from "@/services/launch";
+import { isServerInstance } from "@/utils/instance";
 
 // This modal will use shared-modal-context
 interface LaunchProcessModalProps extends Omit<ModalProps, "children"> {
@@ -74,7 +75,9 @@ const LaunchProcessModal: React.FC<LaunchProcessModalProps> = ({
 
   const previousStep = useRef<number>(-1);
   const candidatePlayers = getPlayerList();
-  const candidateInstances = getInstanceList();
+  const candidateInstances = getInstanceList()?.filter(
+    (instance) => !isServerInstance(instance)
+  );
   const shouldPickInstance = instanceId?.toLowerCase() === "tbd";
   const requestedInstance = useMemo(
     () =>

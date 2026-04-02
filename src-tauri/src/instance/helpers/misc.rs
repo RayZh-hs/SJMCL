@@ -5,7 +5,8 @@ use crate::instance::helpers::loader::forge::download_forge_libraries;
 use crate::instance::helpers::loader::neoforge::download_neoforge_libraries;
 use crate::instance::helpers::loader::optifine::download_optifine_libraries;
 use crate::instance::models::misc::{
-  Instance, InstanceError, InstanceSubdirType, ModLoader, ModLoaderStatus, ModLoaderType, OptiFine,
+  Instance, InstanceError, InstanceSubdirType, InstanceType, ModLoader, ModLoaderStatus,
+  ModLoaderType, OptiFine,
 };
 use crate::launcher_config::helpers::misc::get_global_game_config;
 use crate::launcher_config::models::{GameConfig, GameDirectory, LauncherConfig};
@@ -39,7 +40,9 @@ pub fn get_instance_subdir_paths(
   let game_dir = version_path.parent()?.parent()?; // safe unwrap to `?`
 
   let version_isolation = get_instance_game_config(app, instance).version_isolation;
-  let path = if version_isolation {
+  let path = if instance.instance_type == InstanceType::Server {
+    version_path
+  } else if version_isolation {
     version_path
   } else {
     game_dir
@@ -148,6 +151,32 @@ pub async fn refresh_instances(
     }
 
     let name = entry.file_name().into_string().unwrap();
+    let server_cfg_path =
+      version_path.join(crate::game_server::commands::MANAGED_SERVER_CONFIG_FILE);
+    if server_cfg_path.exists() {
+      let mut cfg_read = Instance {
+        version_path: version_path.clone(),
+        instance_type: InstanceType::Server,
+        ..Default::default()
+      }
+      .load_json_cfg()
+      .await
+      .unwrap_or_default();
+      if cfg_read.instance_type != InstanceType::Server {
+        cfg_read.instance_type = InstanceType::Server;
+      }
+      if cfg_read.name.is_empty() {
+        cfg_read.name = name.clone();
+      }
+      if cfg_read.id.is_empty() {
+        cfg_read.id = format!("{}:{}", game_directory.name, cfg_read.name);
+      }
+      if cfg_read.version_path.as_os_str().is_empty() {
+        cfg_read.version_path = version_path.clone();
+      }
+      instances.push(cfg_read);
+      continue;
+    }
     // if there exists name.jar and name.json, then it's a valid instance
     let jar_path = version_path.join(format!("{}.jar", name));
     let json_path = version_path.join(format!("{}.json", name));
@@ -173,11 +202,15 @@ pub async fn refresh_instances(
     let name = client_data.id.clone();
     let mut cfg_read = Instance {
       version_path: version_path.clone(),
+      instance_type: InstanceType::Client,
       ..Default::default()
     }
     .load_json_cfg()
     .await
     .unwrap_or_default();
+    if cfg_read.instance_type != InstanceType::Server {
+      cfg_read.instance_type = InstanceType::Client;
+    }
 
     if cfg_read.mod_loader.status != ModLoaderStatus::Installed {
       let priority_list = {
