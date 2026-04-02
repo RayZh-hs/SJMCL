@@ -109,8 +109,8 @@
     "moreOptions": {
       "title": "その他のオプション",
       "server": {
-        "title": "サーバーダウンロード",
-        "description": "各バージョンのヴァニラサーバーファイルをダウンロード"
+        "title": "ゲームサーバーを作成",
+        "description": "異なるバージョン向けの管理対象ゲームサーバーファイルを作成して設定する"
       }
     }
   },
@@ -353,6 +353,7 @@
     "notSelectedLoader": "新しいローダーが選択されていません",
     "footer": {
       "installFabricApi": "同時に Fabric API モッドをインストール",
+      "installQFAPI": "QFAPI / QSL モッドも同時にインストール（利用可能な場合）",
       "reinstall": "再インストール"
     }
   },
@@ -421,7 +422,8 @@
       "info": "基本設定"
     },
     "footer": {
-      "installFabricApi": "同時に Fabric API をインストール"
+      "installFabricApi": "同時に Fabric API をインストール",
+      "installQFAPI": "QFAPI / QSL モッドも同時にインストール（利用可能な場合）"
     }
   },
   "CreateRenamedInstShortcutAlertDialog": {
@@ -618,6 +620,7 @@
     },
     "task": {
       "game-client": "ゲームクライアント {{param}}",
+      "game-client-w-java": "ゲームクライアント {{param1}}（Java {{param2}} 付き）",
       "game-server": "ゲームサーバー {{param}}",
       "change-mod-loader": "モッドローダーを変更 {{param}}",
       "mod": "モッド",
@@ -631,6 +634,7 @@
       "retry": "再試行",
       "neoforge-libraries": "NeoForge ランタイムライブラリ",
       "forge-libraries": "Forge ランタイムライブラリ",
+      "optifine-libraries": "OptiFine ランタイムライブラリ",
       "launcher-update": "ランチャーを更新",
       "mojang-java": "Java {{param}} ランタイム"
     }
@@ -991,11 +995,16 @@
           "description": "インスタンスページの左側ナビゲーションバーの表示・グループ化方法を変更",
           "instance": "インスタンス順",
           "directory": "ディレクトリ順",
+          "tag": "タグ順",
           "hidden": "非表示"
         },
         "launchPageQuickSwitch": {
           "title": "クイックスイッチ",
           "description": "起動ページにアカウントとインスタンスの直接選択が可能。"
+        },
+        "autoDownloadJava": {
+          "title": "適切な Java ランタイムを自動ダウンロード",
+          "description": "有効にすると、新しいインスタンス作成時に適切な Java ランタイムが見つからない場合、専用ディレクトリへ自動的にインストールされます"
         }
       }
     },
@@ -1275,7 +1284,8 @@
   "InstanceModsPage": {
     "modLoaderList": {
       "title": "モッドローダー",
-      "notInstalled": "未インストール"
+      "notInstalled": "未インストール",
+      "installed": "インストール済み"
     },
     "modList": {
       "title": "モッド",
@@ -1305,6 +1315,7 @@
   "InstanceSettingsPage": {
     "name": "インスタンス名称",
     "description": "インスタンス情報",
+    "colorTag": "カラータグ",
     "icon": "インスタンスアイコン",
     "applySettings": "インスタンス限定設定を有効化",
     "restoreSettings": "限定設定をリセット",
@@ -2528,6 +2539,23 @@
             "MAIN_CLASS_NOT_FOUND": "メインクラスが見つかりません",
             "PROCESSOR_EXECUTION_FAILED": "インストールタスクの実行に失敗",
             "LOADER_INSTALLER_NOT_FOUND": "ローダーインストーラーのファイルが見つかりません"
+          }
+        }
+      },
+      "finishOptiFineLoaderInstall": {
+        "loading": "{{instanceName}} に OptiFine をインストール中",
+        "success": "OptiFine のインストールが完了しました",
+        "error": {
+          "title": "OptiFine のインストールに失敗",
+          "description": {
+            "INSTANCE_NOT_FOUND_BY_ID": "インスタンス ID が存在しません",
+            "INSTALLATION_DUPLICATED": "別のプロセスが既にインストール中です",
+            "PROCESSOR_EXECUTION_FAILED": "インストールタスクの実行に失敗",
+            "LOADER_INSTALLER_NOT_FOUND": "OptiFine インストーラーファイルが見つかりません",
+            "MOD_LOADER_VERSION_PARSE_ERROR": "OptiFine のバージョン情報の解析に失敗しました",
+            "INVALID_SOURCE_PATH": "ソースパスが無効です",
+            "NO_SUITABLE_JAVA": "適切な Java ランタイムが見つかりません",
+            "SELECTED_JAVA_UNAVAILABLE": "選択した Java ランタイムは利用できません"
           }
         }
       },

@@ -109,8 +109,8 @@
     "moreOptions": {
       "title": "More",
       "server": {
-        "title": "Download Game Server",
-        "description": "Download game server files for different versions"
+        "title": "Create Game Server",
+        "description": "Create and configure managed game server files for different versions"
       }
     }
   },

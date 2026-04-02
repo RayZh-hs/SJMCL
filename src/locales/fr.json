@@ -109,8 +109,8 @@
     "moreOptions": {
       "title": "Plus",
       "server": {
-        "title": "Télécharger le serveur",
-        "description": "Télécharger les fichiers serveur de toutes les versions officielles du jeu"
+        "title": "Créer un serveur de jeu",
+        "description": "Créer et configurer des fichiers de serveur de jeu gérés pour différentes versions"
       }
     }
   },
@@ -353,6 +353,7 @@
     "notSelectedLoader": "Aucun nouveau chargeur sélectionné",
     "footer": {
       "installFabricApi": "Installer également le mod Fabric API",
+      "installQFAPI": "Installer le mod QFAPI / QSL (si disponible)",
       "reinstall": "Réinstaller"
     }
   },
@@ -421,7 +422,8 @@
       "info": "Paramètres de base"
     },
     "footer": {
-      "installFabricApi": "Installez également le mod Fabric API."
+      "installFabricApi": "Installez également le mod Fabric API.",
+      "installQFAPI": "Installer le mod QFAPI / QSL (si disponible)"
     }
   },
   "CreateRenamedInstShortcutAlertDialog": {
@@ -618,6 +620,7 @@
     },
     "task": {
       "game-client": "Client {{param}}",
+      "game-client-w-java": "Client de jeu {{param1}} (avec Java {{param2}})",
       "game-server": "Serveur {{param}}",
       "change-mod-loader": "Modifier le chargeur de mods {{param}}",
       "mod": "Mod",
@@ -631,6 +634,7 @@
       "retry": "Réessayer",
       "neoforge-libraries": "Bibliothèques d'exécution de NeoForge ",
       "forge-libraries": "Bibliothèques d'exécution de Forge",
+      "optifine-libraries": "Bibliothèques OptiFine",
       "launcher-update": "Mettre à jour le lanceur",
       "mojang-java": "Java {{param}} fonctionne"
     }
@@ -991,11 +995,16 @@
           "description": "Modifier l'affichage et le mode de regroupement de la barre latérale des instances",
           "instance": "Par instance",
           "directory": "Par répertoire",
+          "tag": "Par étiquette",
           "hidden": "Masqué"
         },
         "launchPageQuickSwitch": {
           "title": "Basculement rapide entre instances et comptes",
           "description": "Si activé, cliquer sur le bouton de changement de la page de lancement permet de choisir directement un compte ou une instance sans changer de page"
+        },
+        "autoDownloadJava": {
+          "title": "Télécharger automatiquement un runtime Java adapté",
+          "description": "Si activé, lorsqu'aucun runtime Java approprié n'est disponible lors de la création d'une nouvelle instance, il sera installé automatiquement dans un répertoire dédié"
         }
       }
     },
@@ -1275,7 +1284,8 @@
   "InstanceModsPage": {
     "modLoaderList": {
       "title": "Chargeur",
-      "notInstalled": "Non installé"
+      "notInstalled": "Non installé",
+      "installed": "Installé"
     },
     "modList": {
       "title": "Mods",
@@ -1305,6 +1315,7 @@
   "InstanceSettingsPage": {
     "name": "Nom de l'instance",
     "description": "Description de l'instance",
+    "colorTag": "Étiquette de couleur",
     "icon": "Icône de l'instance",
     "applySettings": "Utiliser des paramètres de jeu spécifiques",
     "restoreSettings": "Réinitialiser les paramètres spécifiques ci-dessous",
@@ -2528,6 +2539,23 @@
             "MAIN_CLASS_NOT_FOUND": "Classe principale non trouvée",
             "PROCESSOR_EXECUTION_FAILED": "Échec de l'exécution de la tâche d'installation",
             "LOADER_INSTALLER_NOT_FOUND": "Fichier d'installation du loader introuvable"
+          }
+        }
+      },
+      "finishOptiFineLoaderInstall": {
+        "loading": "Installation d'OptiFine pour {{instanceName}}",
+        "success": "OptiFine installé avec succès",
+        "error": {
+          "title": "Échec de l'installation d'OptiFine",
+          "description": {
+            "INSTANCE_NOT_FOUND_BY_ID": "L'ID de l'instance n'existe pas",
+            "INSTALLATION_DUPLICATED": "Un autre processus est déjà détecté en cours d'installation",
+            "PROCESSOR_EXECUTION_FAILED": "Échec de l'exécution de la tâche d'installation",
+            "LOADER_INSTALLER_NOT_FOUND": "Le programme d'installation d'OptiFine est introuvable",
+            "MOD_LOADER_VERSION_PARSE_ERROR": "Échec de l'analyse des informations de version d'OptiFine",
+            "INVALID_SOURCE_PATH": "Chemin source invalide",
+            "NO_SUITABLE_JAVA": "Aucun environnement Java approprié n'a été trouvé",
+            "SELECTED_JAVA_UNAVAILABLE": "L'environnement Java sélectionné n'est pas disponible"
           }
         }
       },

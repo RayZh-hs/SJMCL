@@ -1,24 +1,9 @@
-import {
-  Center,
-  HStack,
-  Image,
-  Radio,
-  RadioGroup,
-  Tag,
-  VStack,
-} from "@chakra-ui/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { HStack, Image, Radio, StackProps, Tag } from "@chakra-ui/react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BeatLoader } from "react-spinners";
-import Empty from "@/components/common/empty";
-import {
-  OptionItemProps,
-  VirtualOptionItemGroup,
-} from "@/components/common/option-item-virtual";
-import { Section } from "@/components/common/section";
-import SelectableCard, {
-  SelectableCardProps,
-} from "@/components/common/selectable-card";
+import { OptionItemProps } from "@/components/common/option-item-virtual";
+import { SelectableCardProps } from "@/components/common/selectable-card";
+import { LoaderSelectionLayout } from "@/components/loader-selection-layout";
 import { useLauncherConfig } from "@/contexts/config";
 import { useToast } from "@/contexts/toast";
 import { ModLoaderType } from "@/enums/instance";
@@ -46,7 +31,7 @@ export const modLoaderTypesToIcon: Record<string, string> = {
   Quilt: "Quilt.png",
 };
 
-interface LoaderSelectorProps {
+interface LoaderSelectorProps extends Omit<StackProps, "children"> {
   selectedGameVersion: GameClientResourceInfo;
   selectedModLoader: ModLoaderResourceInfo;
   onSelectModLoader: (v: ModLoaderResourceInfo) => void;
@@ -72,8 +57,6 @@ export const LoaderSelector: React.FC<LoaderSelectorProps> = ({
     ModLoaderType.Unknown
   );
   const [selectedId, setSelectedId] = useState("");
-
-  const selectableCardListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (selectedOptiFine) {
@@ -297,60 +280,15 @@ export const LoaderSelector: React.FC<LoaderSelectorProps> = ({
     selectedType,
   ]);
 
-  // Scroll selected item into view when version list changes or selected item changes
-  useEffect(() => {
-    const list = selectableCardListRef.current;
-    if (!list) return;
-    const selectedCard = list.querySelector<HTMLElement>(
-      '[data-loader-selected="true"]'
-    );
-    if (!selectedCard) return;
-
-    const frame = requestAnimationFrame(() => {
-      selectedCard.scrollIntoView({
-        block: "nearest",
-        inline: "nearest",
-      });
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [selectedModLoader.loaderType, selectedOptiFine?.filename, selectedType]);
-
   return (
-    <HStack {...props} w="100%" h="100%" spacing={4} overflow="hidden">
-      <VStack
-        spacing={3.5}
-        h="100%"
-        overflowY="auto"
-        overflowX="hidden"
-        flexShrink={0}
-        ref={selectableCardListRef}
-      >
-        {selectableCardItems.map((item, index) => (
-          <SelectableCard
-            key={index}
-            {...item}
-            minW="3xs"
-            w="100%"
-            data-loader-selected={item.isSelected ? "true" : undefined}
-          />
-        ))}
-      </VStack>
-      <Section overflow="auto" flexGrow={1} w="100%" h="100%">
-        {isLoading ? (
-          <Center h="100%">
-            <BeatLoader size={16} color="gray" />
-          </Center>
-        ) : versionList.length === 0 ? (
-          <Center h="100%">
-            <Empty withIcon={false} size="sm" />
-          </Center>
-        ) : (
-          <RadioGroup value={selectedId} onChange={setSelectedId} h="100%">
-            <VirtualOptionItemGroup h="100%" items={versionList} />
-          </RadioGroup>
-        )}
-      </Section>
-    </HStack>
+    <LoaderSelectionLayout
+      {...props}
+      cards={selectableCardItems}
+      isLoading={isLoading}
+      options={versionList}
+      selectedId={selectedId}
+      onSelectedIdChange={setSelectedId}
+      selectedCardKey={`${selectedType}-${selectedModLoader.loaderType}-${selectedOptiFine?.filename || ""}`}
+    />
   );
 };

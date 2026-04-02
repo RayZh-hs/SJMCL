@@ -109,8 +109,8 @@
     "moreOptions": {
       "title": "更多",
       "server": {
-        "title": "下载服务端",
-        "description": "下载各版本原版游戏服务端文件"
+        "title": "创建游戏服务器",
+        "description": "为不同版本创建并配置托管游戏服务器文件"
       }
     }
   },

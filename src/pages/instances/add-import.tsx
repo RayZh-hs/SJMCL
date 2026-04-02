@@ -19,7 +19,7 @@ import {
   OptionItemGroupProps,
 } from "@/components/common/option-item";
 import { CreateInstanceModal } from "@/components/modals/create-instance-modal";
-import { DownloadGameServerModal } from "@/components/modals/download-game-server-modal";
+import { CreateServerModal } from "@/components/modals/create-server-modal";
 import DownloadModpackModal from "@/components/modals/download-modpack-modal";
 import { useSharedModals } from "@/contexts/shared-modal";
 
@@ -44,9 +44,9 @@ const AddAndImportInstancePage = () => {
     onClose: onCloseDownloadModpackModal,
   } = useDisclosure();
   const {
-    isOpen: isDownloadGameServerModalOpen,
-    onOpen: onOpenDownloadGameServerModal,
-    onClose: onCloseDownloadGameServerModal,
+    isOpen: isCreateServerModalOpen,
+    onOpen: onOpenCreateServerModal,
+    onClose: onCloseCreateServerModal,
   } = useDisclosure();
 
   const handleImportModpackFromDisk = async () => {
@@ -73,7 +73,7 @@ const AddAndImportInstancePage = () => {
   };
 
   const moreOptions: Record<string, () => void> = {
-    server: onOpenDownloadGameServerModal,
+    server: onOpenCreateServerModal,
   };
 
   const modpackOperations = [
@@ -162,9 +162,9 @@ const AddAndImportInstancePage = () => {
         isOpen={isDownloadModpackModalOpen}
         onClose={onCloseDownloadModpackModal}
       />
-      <DownloadGameServerModal
-        isOpen={isDownloadGameServerModalOpen}
-        onClose={onCloseDownloadGameServerModal}
+      <CreateServerModal
+        isOpen={isCreateServerModalOpen}
+        onClose={onCloseCreateServerModal}
       />
     </>
   );
