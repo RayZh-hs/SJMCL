@@ -26,6 +26,7 @@ export interface SectionProps extends Omit<BoxProps, "children"> {
   backRoutePath?: string;
   children?: React.ReactNode;
   maxTitleLines?: number;
+  contentProps?: BoxProps;
 }
 
 export const Section: React.FC<SectionProps> = ({
@@ -40,6 +41,7 @@ export const Section: React.FC<SectionProps> = ({
   maxTitleLines = undefined,
   backRoutePath = "",
   children,
+  contentProps,
   ...props
 }) => {
   const { isOpen, onToggle: internalOnToggle } = useDisclosure({
@@ -121,10 +123,10 @@ export const Section: React.FC<SectionProps> = ({
       )}
       {isAccordion ? (
         <Collapse in={isOpen} animateOpacity>
-          {children}
+          <Box {...contentProps}>{children}</Box>
         </Collapse>
       ) : (
-        children
+        <Box {...contentProps}>{children}</Box>
       )}
     </Box>
   );

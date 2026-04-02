@@ -95,31 +95,9 @@ export const CreateServerModal: React.FC<Omit<ModalProps, "children">> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!modalProps.isOpen) {
-      setActiveStep(0);
-      return;
-    }
-
-    setSelectedGameVersion(undefined);
-    setServerKind(GameServerKind.Vanilla);
-    setFabricLoaders([]);
-    setSelectedFabricLoader(undefined);
-    setIsLoadingFabricLoaders(false);
-    setInstanceName("");
-    setInstanceDescription("");
-    setInstanceIconSrc(serverKindToIcon[GameServerKind.Vanilla]);
+    if (instanceDirectory || config.localGameDirectories.length === 0) return;
     setInstanceDirectory(config.localGameDirectories[0]);
-    setJavaPath("java");
-    setJvmArgs("-Xms1G -Xmx2G");
-    setAutoAcceptEula(false);
-    setLaunchPreset("launcher");
-    setBackgroundMode(GameServerBackgroundMode.Direct);
-    setBackgroundCommand("");
-    setStopCommand("");
-    setWorldSource("");
-    setProperties(defaultManagedGameServerProperties);
-    setActiveStep(0);
-  }, [config.localGameDirectories, modalProps.isOpen, setActiveStep]);
+  }, [config.localGameDirectories, instanceDirectory]);
 
   useEffect(() => {
     if (!selectedGameVersion) return;

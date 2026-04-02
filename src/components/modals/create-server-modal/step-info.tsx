@@ -1,11 +1,8 @@
 import {
   Alert,
   AlertIcon,
+  Box,
   Button,
-  Checkbox,
-  FormLabel,
-  HStack,
-  Input,
   ModalBody,
   ModalFooter,
   NumberInput,
@@ -15,9 +12,22 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Dispatch, SetStateAction } from "react";
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
+import Editable from "@/components/common/editable";
 import { MenuSelector } from "@/components/common/menu-selector";
+import {
+  OptionItemGroup,
+  OptionItemProps,
+} from "@/components/common/option-item";
+import { Section } from "@/components/common/section";
 import { InstanceBasicSettings } from "@/components/instance-basic-settings";
 import { GameDirectory } from "@/models/config";
 import {
@@ -26,6 +36,8 @@ import {
 } from "@/models/game-server";
 import { GameClientResourceInfo } from "@/models/resource";
 import { LaunchPreset } from "./constants";
+
+type WorldSetupMode = "generate" | "folder" | "zip";
 
 interface CreateServerInfoStepProps {
   name: string;
@@ -63,6 +75,26 @@ interface CreateServerInfoStepProps {
   isLoading: boolean;
 }
 
+const worldSetupModeFromSource = (worldSource: string): WorldSetupMode => {
+  if (!worldSource) return "generate";
+  return worldSource.toLowerCase().endsWith(".zip") ? "zip" : "folder";
+};
+
+const selectorButtonProps = {
+  w: { base: "10rem", md: "13rem" },
+  maxW: "100%",
+  size: "sm" as const,
+  justifyContent: "space-between" as const,
+  fontSize: "xs",
+};
+
+const editableWidth = { base: "10rem", md: "13rem" };
+const numberInputWidth = { base: "7.5rem", md: "9rem" };
+const sectionContentProps = {
+  px: 2,
+  pb: 1.5,
+};
+
 export const CreateServerInfoStep: React.FC<CreateServerInfoStepProps> = ({
   name,
   setName,
@@ -99,354 +131,534 @@ export const CreateServerInfoStep: React.FC<CreateServerInfoStepProps> = ({
   isLoading,
 }) => {
   const { t } = useTranslation();
+  const [worldSetupMode, setWorldSetupMode] = useState<WorldSetupMode>(
+    worldSetupModeFromSource(worldSource)
+  );
+
+  useEffect(() => {
+    if (!worldSource) return;
+    setWorldSetupMode(worldSetupModeFromSource(worldSource));
+  }, [worldSource]);
+
+  const renderEditableField = useCallback(
+    (
+      value: string,
+      onEditSubmit: (value: string) => void,
+      placeholder?: string
+    ) => (
+      <Editable
+        isTextArea={false}
+        value={value}
+        onEditSubmit={onEditSubmit}
+        placeholder={placeholder}
+        minW={editableWidth}
+        textProps={{ fontSize: "sm" }}
+        inputProps={{
+          size: "sm",
+          w: editableWidth,
+        }}
+      />
+    ),
+    []
+  );
+
+  const handleWorldSourcePick = useCallback(
+    async (mode: Extract<WorldSetupMode, "folder" | "zip">) => {
+      const path =
+        mode === "folder"
+          ? await open({
+              directory: true,
+              multiple: false,
+            })
+          : await open({
+              multiple: false,
+              filters: [
+                {
+                  name: "World archive",
+                  extensions: ["zip"],
+                },
+              ],
+            });
+
+      if (typeof path === "string") {
+        setWorldSetupMode(mode);
+        setWorldSource(path);
+      }
+    },
+    [setWorldSource]
+  );
+
+  const handleWorldSetupModeChange = useCallback(
+    (value: WorldSetupMode) => {
+      setWorldSetupMode(value);
+
+      if (value === "generate") {
+        setWorldSource("");
+        return;
+      }
+
+      if (worldSetupModeFromSource(worldSource) !== value) {
+        setWorldSource("");
+      }
+    },
+    [setWorldSource, worldSource]
+  );
+
+  const serverBasicsItems = useMemo<OptionItemProps[]>(
+    () => [
+      {
+        title: "MOTD",
+        description: "Shown in the multiplayer server list.",
+        children: renderEditableField(properties.motd, (value) =>
+          setProperties((prev) => ({
+            ...prev,
+            motd: value,
+          }))
+        ),
+      },
+      {
+        title: "Server port",
+        description: "Port used for incoming player connections.",
+        children: (
+          <NumberInput
+            size="sm"
+            w={numberInputWidth}
+            value={properties.serverPort}
+            min={1}
+            max={65535}
+            onChange={(_, valueAsNumber) =>
+              setProperties((prev) => ({
+                ...prev,
+                serverPort: Number.isFinite(valueAsNumber)
+                  ? valueAsNumber
+                  : prev.serverPort,
+              }))
+            }
+          >
+            <NumberInputField />
+          </NumberInput>
+        ),
+      },
+      {
+        title: "Max players",
+        description: "Maximum number of players allowed online at once.",
+        children: (
+          <NumberInput
+            size="sm"
+            w={numberInputWidth}
+            value={properties.maxPlayers}
+            min={1}
+            max={1000}
+            onChange={(_, valueAsNumber) =>
+              setProperties((prev) => ({
+                ...prev,
+                maxPlayers: Number.isFinite(valueAsNumber)
+                  ? valueAsNumber
+                  : prev.maxPlayers,
+              }))
+            }
+          >
+            <NumberInputField />
+          </NumberInput>
+        ),
+      },
+      {
+        title: "Difficulty",
+        description: "Default world difficulty for new players and mobs.",
+        children: (
+          <MenuSelector
+            value={properties.difficulty}
+            onSelect={(value) =>
+              setProperties((prev) => ({
+                ...prev,
+                difficulty: (value as string) || prev.difficulty,
+              }))
+            }
+            options={["peaceful", "easy", "normal", "hard"].map((value) => ({
+              value,
+              label: value,
+            }))}
+            size="md"
+            fontSize="sm"
+            buttonProps={selectorButtonProps}
+          />
+        ),
+      },
+      {
+        title: "Gamemode",
+        description: "Gameplay rules players spawn into by default.",
+        children: (
+          <MenuSelector
+            value={properties.gamemode}
+            onSelect={(value) =>
+              setProperties((prev) => ({
+                ...prev,
+                gamemode: (value as string) || prev.gamemode,
+              }))
+            }
+            options={["survival", "creative", "adventure", "spectator"].map(
+              (value) => ({
+                value,
+                label: value,
+              })
+            )}
+            size="md"
+            fontSize="sm"
+            buttonProps={selectorButtonProps}
+          />
+        ),
+      },
+      {
+        title: "Online mode",
+        description: "Verify connecting players with Mojang authentication.",
+        children: (
+          <Switch
+            colorScheme={primaryColor}
+            isChecked={properties.onlineMode}
+            onChange={(event) =>
+              setProperties((prev) => ({
+                ...prev,
+                onlineMode: event.target.checked,
+              }))
+            }
+          />
+        ),
+      },
+      {
+        title: "PVP",
+        description: "Allow players to damage one another during gameplay.",
+        children: (
+          <Switch
+            colorScheme={primaryColor}
+            isChecked={properties.pvp}
+            onChange={(event) =>
+              setProperties((prev) => ({
+                ...prev,
+                pvp: event.target.checked,
+              }))
+            }
+          />
+        ),
+      },
+      {
+        title: "Allow flight",
+        description: "Permit player flight without automatic kicks.",
+        children: (
+          <Switch
+            colorScheme={primaryColor}
+            isChecked={properties.allowFlight}
+            onChange={(event) =>
+              setProperties((prev) => ({
+                ...prev,
+                allowFlight: event.target.checked,
+              }))
+            }
+          />
+        ),
+      },
+    ],
+    [primaryColor, properties, renderEditableField, setProperties]
+  );
+
+  const worldSetupItems = useMemo<OptionItemProps[]>(() => {
+    const items: OptionItemProps[] = [
+      {
+        title: "World source",
+        description:
+          "Choose whether to generate a new world or import an existing save.",
+        children: (
+          <MenuSelector
+            value={worldSetupMode}
+            onSelect={(value) =>
+              handleWorldSetupModeChange(
+                (value as WorldSetupMode) || "generate"
+              )
+            }
+            options={[
+              { value: "generate", label: "Generate new world" },
+              { value: "folder", label: "Import world folder" },
+              { value: "zip", label: "Import zip archive" },
+            ]}
+            size="md"
+            fontSize="sm"
+            buttonProps={selectorButtonProps}
+          />
+        ),
+      },
+    ];
+
+    if (worldSetupMode === "generate") {
+      items.push(
+        {
+          title: "Level name",
+          description: "The world folder name created inside the server.",
+          children: renderEditableField(properties.levelName, (value) =>
+            setProperties((prev) => ({
+              ...prev,
+              levelName: value,
+            }))
+          ),
+        },
+        {
+          title: "Level seed",
+          description: "Optional world seed used for first-time generation.",
+          children: renderEditableField(properties.levelSeed, (value) =>
+            setProperties((prev) => ({
+              ...prev,
+              levelSeed: value,
+            }))
+          ),
+        },
+        {
+          title: "Level type",
+          description: "Generator preset, such as default or flat.",
+          children: renderEditableField(properties.levelType, (value) =>
+            setProperties((prev) => ({
+              ...prev,
+              levelType: value,
+            }))
+          ),
+        }
+      );
+    } else {
+      items.push(
+        {
+          title: worldSetupMode === "folder" ? "World folder" : "World archive",
+          description: worldSource
+            ? worldSource
+            : worldSetupMode === "folder"
+              ? "Select a world directory to copy into this server."
+              : "Select a .zip archive to extract into this server.",
+          children: (
+            <Button
+              size="sm"
+              onClick={() =>
+                handleWorldSourcePick(
+                  worldSetupMode as Extract<WorldSetupMode, "folder" | "zip">
+                )
+              }
+            >
+              {worldSource
+                ? worldSetupMode === "folder"
+                  ? "Change folder"
+                  : "Change zip"
+                : worldSetupMode === "folder"
+                  ? "Choose folder"
+                  : "Choose zip"}
+            </Button>
+          ),
+        },
+        {
+          title: "Imported world name",
+          description: "Existing worlds are copied into this folder name.",
+          children: renderEditableField(properties.levelName, (value) =>
+            setProperties((prev) => ({
+              ...prev,
+              levelName: value,
+            }))
+          ),
+        }
+      );
+
+      if (worldSource) {
+        items.push({
+          title: "Clear import",
+          description: "Remove the selected source while keeping import mode.",
+          children: (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setWorldSource("")}
+            >
+              Clear selection
+            </Button>
+          ),
+        });
+      }
+    }
+
+    return items;
+  }, [
+    handleWorldSetupModeChange,
+    handleWorldSourcePick,
+    properties,
+    setProperties,
+    setWorldSource,
+    worldSetupMode,
+    worldSource,
+    renderEditableField,
+  ]);
+
+  const advancedRuntimeItems = useMemo<OptionItemProps[]>(() => {
+    const items: OptionItemProps[] = [
+      {
+        title: "Java path",
+        description: "Binary used to launch the server process.",
+        children: renderEditableField(javaPath, setJavaPath, "java"),
+      },
+      {
+        title: "JVM args",
+        description: "Extra JVM flags such as heap sizing.",
+        children: renderEditableField(jvmArgs, setJvmArgs, "-Xms1G -Xmx2G"),
+      },
+      {
+        title: "Auto-accept EULA",
+        description: "Write `eula=true` automatically before first launch.",
+        children: (
+          <Switch
+            colorScheme={primaryColor}
+            isChecked={autoAcceptEula}
+            onChange={(event) => setAutoAcceptEula(event.target.checked)}
+          />
+        ),
+      },
+      {
+        title: "Launch handling",
+        description:
+          "Use the launcher directly or hand process ownership to shell tooling.",
+        children: (
+          <MenuSelector
+            value={launchPreset}
+            onSelect={(value) =>
+              onLaunchPresetChange((value as LaunchPreset) || "launcher")
+            }
+            options={[
+              { value: "launcher", label: "Launcher managed" },
+              { value: "disown", label: "Disown / nohup" },
+              { value: "screen", label: "screen" },
+              { value: "tmux", label: "tmux" },
+              { value: "zellij", label: "zellij" },
+              { value: "custom", label: "Custom command" },
+            ]}
+            size="md"
+            fontSize="sm"
+            buttonProps={selectorButtonProps}
+          />
+        ),
+      },
+    ];
+
+    if (backgroundMode === GameServerBackgroundMode.ExternalCommand) {
+      items.push(
+        {
+          title: "Start command",
+          description:
+            "Template used to launch the server through your chosen wrapper.",
+          children: renderEditableField(
+            backgroundCommand,
+            setBackgroundCommand,
+            "tmux new-session -d -s {{name}} ..."
+          ),
+        },
+        {
+          title: "Stop command",
+          description:
+            "Optional command for stopping externally managed servers.",
+          children: renderEditableField(
+            stopCommand,
+            setStopCommand,
+            "tmux kill-session -t {{name}}"
+          ),
+        },
+        {
+          title: "Supported placeholders",
+          description:
+            "{{name}}, {{launch_cmd}}, {{work_dir}}, {{java}}, {{jar}}, {{classpath}}, {{main_class}}, {{jvm_args}}, {{log_file}}",
+          children: <Box minW={editableWidth} />,
+        }
+      );
+    }
+
+    return items;
+  }, [
+    autoAcceptEula,
+    backgroundCommand,
+    backgroundMode,
+    javaPath,
+    jvmArgs,
+    launchPreset,
+    onLaunchPresetChange,
+    primaryColor,
+    setAutoAcceptEula,
+    setBackgroundCommand,
+    setJavaPath,
+    setJvmArgs,
+    setStopCommand,
+    stopCommand,
+    renderEditableField,
+  ]);
 
   return (
     <>
       <ModalBody>
-        <Stack spacing={5}>
-          <InstanceBasicSettings
-            name={name}
-            setName={setName}
-            description={description}
-            setDescription={setDescription}
-            iconSrc={iconSrc}
-            setIconSrc={setIconSrc}
-            gameDirectory={gameDirectory}
-            setGameDirectory={setGameDirectory}
-          />
-
-          <Stack spacing={4}>
-            <Text fontWeight="bold">Server runtime</Text>
-            <HStack spacing={4} align="start" flexWrap="wrap">
-              <Stack spacing={2} minW="16rem" flex={1}>
-                <FormLabel m={0}>Java path</FormLabel>
-                <Input
-                  value={javaPath}
-                  onChange={(event) => setJavaPath(event.target.value)}
-                  placeholder="java"
-                />
-              </Stack>
-              <Stack spacing={2} minW="18rem" flex={1.2}>
-                <FormLabel m={0}>JVM args</FormLabel>
-                <Input
-                  value={jvmArgs}
-                  onChange={(event) => setJvmArgs(event.target.value)}
-                  placeholder="-Xms1G -Xmx2G"
-                />
-              </Stack>
-            </HStack>
-
-            <Checkbox
-              isChecked={autoAcceptEula}
-              onChange={(event) => setAutoAcceptEula(event.target.checked)}
-              colorScheme={primaryColor}
-            >
-              Auto-sign the Minecraft server EULA on first launch
-            </Checkbox>
-
-            <Stack spacing={2}>
-              <FormLabel m={0}>Launch handling</FormLabel>
-              <MenuSelector
-                value={launchPreset}
-                onSelect={(value) =>
-                  onLaunchPresetChange(value as LaunchPreset)
-                }
-                options={[
-                  {
-                    value: "launcher",
-                    label: "Launcher managed",
-                  },
-                  {
-                    value: "disown",
-                    label: "Disown / nohup",
-                  },
-                  {
-                    value: "screen",
-                    label: "screen",
-                  },
-                  {
-                    value: "tmux",
-                    label: "tmux",
-                  },
-                  {
-                    value: "zellij",
-                    label: "zellij",
-                  },
-                  {
-                    value: "custom",
-                    label: "Custom command",
-                  },
-                ]}
-                buttonProps={{ w: "100%" }}
-              />
+        <Stack spacing={5} h="100%">
+          <Alert status="info" borderRadius="lg" alignItems="flex-start">
+            <AlertIcon mt={0.5} />
+            <Stack spacing={0.5}>
+              <Text fontSize="sm" fontWeight="semibold">
+                Minecraft {selectedGameVersion?.id || "None selected"}
+              </Text>
               <Text fontSize="xs" className="secondary-text">
-                Launcher-managed mode lets the launcher track the server process
-                directly. Wrapper presets leave process ownership to shell
-                tooling and rely on the configured commands.
+                Loader: {loaderLabel}
               </Text>
             </Stack>
-
-            {backgroundMode === GameServerBackgroundMode.ExternalCommand && (
-              <Stack spacing={3}>
-                <Stack spacing={2}>
-                  <FormLabel m={0}>Start command</FormLabel>
-                  <Input
-                    value={backgroundCommand}
-                    onChange={(event) =>
-                      setBackgroundCommand(event.target.value)
-                    }
-                    placeholder="tmux new-session -d -s {{name}} 'cd {{work_dir}} && {{launch_cmd}}'"
-                  />
-                </Stack>
-                <Stack spacing={2}>
-                  <FormLabel m={0}>Stop command</FormLabel>
-                  <Input
-                    value={stopCommand}
-                    onChange={(event) => setStopCommand(event.target.value)}
-                    placeholder="tmux kill-session -t {{name}}"
-                  />
-                </Stack>
-                <Alert status="info" borderRadius="md">
-                  <AlertIcon />
-                  <Text fontSize="sm">
-                    Supported placeholders: {"{{name}}"}, {"{{launch_cmd}}"},{" "}
-                    {"{{work_dir}}"}, {"{{java}}"}, {"{{jar}}"},{" "}
-                    {"{{classpath}}"}, {"{{main_class}}"}, {"{{jvm_args}}"},{" "}
-                    {"{{log_file}}"}
-                  </Text>
-                </Alert>
-              </Stack>
-            )}
-          </Stack>
-
-          <Stack spacing={4}>
-            <Text fontWeight="bold">World setup</Text>
-            <HStack spacing={3} flexWrap="wrap">
-              <Button
-                onClick={async () => {
-                  const path = await open({
-                    directory: true,
-                    multiple: false,
-                  });
-                  if (typeof path === "string") setWorldSource(path);
-                }}
-              >
-                Choose world folder
-              </Button>
-              <Button
-                onClick={async () => {
-                  const path = await open({
-                    multiple: false,
-                    filters: [
-                      {
-                        name: "World archive",
-                        extensions: ["zip"],
-                      },
-                    ],
-                  });
-                  if (typeof path === "string") setWorldSource(path);
-                }}
-              >
-                Choose world zip
-              </Button>
-              <Button variant="ghost" onClick={() => setWorldSource("")}>
-                Generate new world
-              </Button>
-            </HStack>
-            <Text fontSize="sm" className="secondary-text">
-              {worldSource
-                ? worldSource
-                : "No world source selected. The server will generate a new world using the level settings below."}
-            </Text>
-          </Stack>
-
-          <Stack spacing={4}>
-            <Text fontWeight="bold">Server properties</Text>
-            <Stack spacing={3}>
-              <Stack spacing={2}>
-                <FormLabel m={0}>MOTD</FormLabel>
-                <Input
-                  value={properties.motd}
-                  onChange={(event) =>
-                    setProperties((prev) => ({
-                      ...prev,
-                      motd: event.target.value,
-                    }))
-                  }
-                />
-              </Stack>
-
-              <HStack spacing={4} align="start" flexWrap="wrap">
-                <Stack spacing={2}>
-                  <FormLabel m={0}>Server port</FormLabel>
-                  <NumberInput
-                    value={properties.serverPort}
-                    min={1}
-                    max={65535}
-                    onChange={(_, valueAsNumber) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        serverPort: Number.isFinite(valueAsNumber)
-                          ? valueAsNumber
-                          : prev.serverPort,
-                      }))
-                    }
-                  >
-                    <NumberInputField />
-                  </NumberInput>
-                </Stack>
-
-                <Stack spacing={2}>
-                  <FormLabel m={0}>Max players</FormLabel>
-                  <NumberInput
-                    value={properties.maxPlayers}
-                    min={1}
-                    max={1000}
-                    onChange={(_, valueAsNumber) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        maxPlayers: Number.isFinite(valueAsNumber)
-                          ? valueAsNumber
-                          : prev.maxPlayers,
-                      }))
-                    }
-                  >
-                    <NumberInputField />
-                  </NumberInput>
-                </Stack>
-
-                <Stack spacing={2} minW="12rem">
-                  <FormLabel m={0}>Difficulty</FormLabel>
-                  <MenuSelector
-                    value={properties.difficulty}
-                    onSelect={(value) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        difficulty: value as string,
-                      }))
-                    }
-                    options={["peaceful", "easy", "normal", "hard"].map(
-                      (value) => ({
-                        value,
-                        label: value,
-                      })
-                    )}
-                  />
-                </Stack>
-
-                <Stack spacing={2} minW="12rem">
-                  <FormLabel m={0}>Gamemode</FormLabel>
-                  <MenuSelector
-                    value={properties.gamemode}
-                    onSelect={(value) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        gamemode: value as string,
-                      }))
-                    }
-                    options={[
-                      "survival",
-                      "creative",
-                      "adventure",
-                      "spectator",
-                    ].map((value) => ({
-                      value,
-                      label: value,
-                    }))}
-                  />
-                </Stack>
-              </HStack>
-
-              <HStack spacing={6} flexWrap="wrap">
-                <HStack spacing={3}>
-                  <Text fontSize="sm">Online mode</Text>
-                  <Switch
-                    colorScheme={primaryColor}
-                    isChecked={properties.onlineMode}
-                    onChange={(event) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        onlineMode: event.target.checked,
-                      }))
-                    }
-                  />
-                </HStack>
-                <HStack spacing={3}>
-                  <Text fontSize="sm">PVP</Text>
-                  <Switch
-                    colorScheme={primaryColor}
-                    isChecked={properties.pvp}
-                    onChange={(event) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        pvp: event.target.checked,
-                      }))
-                    }
-                  />
-                </HStack>
-                <HStack spacing={3}>
-                  <Text fontSize="sm">Allow flight</Text>
-                  <Switch
-                    colorScheme={primaryColor}
-                    isChecked={properties.allowFlight}
-                    onChange={(event) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        allowFlight: event.target.checked,
-                      }))
-                    }
-                  />
-                </HStack>
-              </HStack>
-
-              <HStack spacing={4} align="start" flexWrap="wrap">
-                <Stack spacing={2} minW="14rem" flex={1}>
-                  <FormLabel m={0}>Level name</FormLabel>
-                  <Input
-                    value={properties.levelName}
-                    onChange={(event) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        levelName: event.target.value,
-                      }))
-                    }
-                  />
-                </Stack>
-                <Stack spacing={2} minW="14rem" flex={1}>
-                  <FormLabel m={0}>Level seed</FormLabel>
-                  <Input
-                    value={properties.levelSeed}
-                    onChange={(event) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        levelSeed: event.target.value,
-                      }))
-                    }
-                  />
-                </Stack>
-                <Stack spacing={2} minW="14rem" flex={1}>
-                  <FormLabel m={0}>Level type</FormLabel>
-                  <Input
-                    value={properties.levelType}
-                    onChange={(event) =>
-                      setProperties((prev) => ({
-                        ...prev,
-                        levelType: event.target.value,
-                      }))
-                    }
-                  />
-                </Stack>
-              </HStack>
-            </Stack>
-          </Stack>
-
-          <Alert status="info" borderRadius="md">
-            <AlertIcon />
-            <Text fontSize="sm">
-              Selected version: {selectedGameVersion?.id || "None"}
-              {" • "}Loader: {loaderLabel}
-            </Text>
           </Alert>
+
+          <Box flex={1} minW={0} overflowY="auto">
+            <Stack spacing={5}>
+              <Section
+                title="Game instance"
+                description="Name, icon, description, and storage location."
+                isAccordion
+                initialIsOpen
+                contentProps={sectionContentProps}
+              >
+                <InstanceBasicSettings
+                  name={name}
+                  setName={setName}
+                  description={description}
+                  setDescription={setDescription}
+                  iconSrc={iconSrc}
+                  setIconSrc={setIconSrc}
+                  gameDirectory={gameDirectory}
+                  setGameDirectory={setGameDirectory}
+                />
+              </Section>
+
+              <OptionItemGroup
+                title="Server basics"
+                description="Core gameplay and server rules."
+                isAccordion
+                initialIsOpen
+                withInCard={false}
+                contentProps={sectionContentProps}
+                items={serverBasicsItems}
+                w="100%"
+              />
+
+              <OptionItemGroup
+                title="World setup"
+                description="Choose how the world should be created or imported."
+                isAccordion
+                initialIsOpen
+                withInCard={false}
+                contentProps={sectionContentProps}
+                items={worldSetupItems}
+                w="100%"
+              />
+
+              <OptionItemGroup
+                title="Advanced runtime"
+                description="Java, EULA handling, and external process control."
+                isAccordion
+                initialIsOpen={false}
+                withInCard={false}
+                contentProps={sectionContentProps}
+                items={advancedRuntimeItems}
+                w="100%"
+              />
+            </Stack>
+          </Box>
         </Stack>
       </ModalBody>
       <ModalFooter mt={1}>
